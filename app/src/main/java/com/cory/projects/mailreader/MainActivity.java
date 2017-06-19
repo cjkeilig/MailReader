@@ -13,11 +13,15 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.ExponentialBackOff;
 
+import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 
 import com.google.api.services.gmail.model.*;
 
 
+import android.annotation.TargetApi;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.TextToSpeech.OnInitListener;
 import android.support.v7.app.AppCompatActivity;
 import android.Manifest;
 import android.accounts.AccountManager;
@@ -45,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import pub.devrel.easypermissions.AfterPermissionGranted;
 import pub.devrel.easypermissions.EasyPermissions;
@@ -61,7 +66,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
 
     private static final String BUTTON_TEXT = "Call Gmail API";
     private static final String PREF_ACCOUNT_NAME = "accountName";
-    private static final String[] SCOPES = { GmailScopes.GMAIL_LABELS };
+    private static final String[] SCOPES = { GmailScopes.GMAIL_READONLY };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,6 +85,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         mOutputText = (TextView)findViewById(R.id.textView1);
         mProgress = (ProgressBar)findViewById(R.id.progressBar2);
         mProgress.setVisibility(View.INVISIBLE);
+        mOutputText.setMovementMethod(new ScrollingMovementMethod());
         mCredential = GoogleAccountCredential.usingOAuth2(
                 getApplicationContext(), Arrays.asList(SCOPES))
                 .setBackOff(new ExponentialBackOff());
@@ -230,12 +236,20 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
 
         private List<String> getDataFromApi() throws IOException {
             String user = "me";
-            List<String> labels = new ArrayList<String>();
-            ListLabelsResponse listResponse = mService.users().labels().list(user).execute();
-            for (Label label : listResponse.getLabels()) {
-                labels.add(label.getName());
+            //List<String> labels = new ArrayList<String>();
+            List<String> headers = new ArrayList<String>();
+            //ListLabelsResponse listLabelsResponse = mService.users().labels().list(user).execute();
+            ListMessagesResponse listMessagesResponse =  mService.users().messages().list(user).setMaxResults(10L).execute();
+
+            //for (Label label : listLabelsResponse.getLabels()) {
+            //    labels.add(label.getName());
+            //}
+            List<Message> messages = listMessagesResponse.getMessages();
+            for(Message m : messages) {
+                headers.add(mService.users().messages().get(user, m.getId()).execute().getSnippet());
             }
-            return labels;
+            //return labels;
+            return headers;
         }
 
         @Override
@@ -245,16 +259,32 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         }
 
         @Override
+        @TargetApi(21)
         protected void onPostExecute(List<String> output) {
             mProgress.setVisibility(View.INVISIBLE);
             if(output == null || output.size() == 0) {
                 mOutputText.setText("No results returned.");
             } else {
                 output.add(0, "Data received using Gmail API");
-                mOutputText.setText(TextUtils.join("\n", output));
+                final String formattedText = TextUtils.join("\n", output);
+                mOutputText.setText(formattedText);
+                final TextToSpeech textToSpeech;
+                textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+                   @Override
+                   public void onInit(int status) {
+                       if (status == TextToSpeech.SUCCESS) {
+                           int result = textToSpeech.setLanguage(Locale.ENGLISH);
+                           if (result == TextToSpeech.LANG_MISSING_DATA) {
+
+                           } else {
+                               textToSpeech.speak(formattedText, textToSpeech.QUEUE_FLUSH, null, null);
+                               textToSpeech.shutdown();
+                           }
+                       }
+                    }
+                });
             }
         }
-
         @Override
         protected void onCancelled() {
             mProgress.setVisibility(View.INVISIBLE);

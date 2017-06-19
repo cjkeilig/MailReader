@@ -32,10 +32,16 @@
         android:id="@+id/textView1"
         android:layout_below="@+id/button2"
         android:layout_marginTop="60dp"
-        android:layout_above="@+id/progressBar2"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:scrollbars="vertical"
+        android:scrollbarAlwaysDrawVerticalTrack="true"
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true" />
+        android:layout_above="@+id/progressBar2"
+        android:clickable="false"
+        android:maxLines="200"
+        android:scrollIndicators="right"
+        android:selectAllOnFocus="true" />
 
 </RelativeLayout>
