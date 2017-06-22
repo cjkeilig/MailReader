@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
     private ProgressBar mProgress;
     private TextView mOutputText;
     private Button mCallApiButton;
+    TextToSpeech textToSpeech;
+    int result;
     static final int REQUEST_ACCOUNT_PICKER = 1000;
     static final int REQUEST_AUTHORIZATION = 1001;
     static final int REQUEST_GOOGLE_PLAY_SERVICES = 1002;
@@ -89,6 +91,17 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         mCredential = GoogleAccountCredential.usingOAuth2(
                 getApplicationContext(), Arrays.asList(SCOPES))
                 .setBackOff(new ExponentialBackOff());
+        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    result = textToSpeech.setLanguage(Locale.ENGLISH);
+                    if (result == TextToSpeech.LANG_MISSING_DATA) {
+                    } else {
+                    }
+                }
+            }
+        });
     }
 
 
@@ -237,7 +250,8 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         private List<String> getDataFromApi() throws IOException {
             String user = "me";
             //List<String> labels = new ArrayList<String>();
-            List<String> headers = new ArrayList<String>();
+            List<MessagePartHeader> headers = new ArrayList<MessagePartHeader>();
+            List<String> subjects = new ArrayList<String>();
             //ListLabelsResponse listLabelsResponse = mService.users().labels().list(user).execute();
             ListMessagesResponse listMessagesResponse =  mService.users().messages().list(user).setMaxResults(10L).execute();
 
@@ -246,10 +260,15 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
             //}
             List<Message> messages = listMessagesResponse.getMessages();
             for(Message m : messages) {
-                headers.add(mService.users().messages().get(user, m.getId()).execute().getSnippet());
+                headers = mService.users().messages().get(user, m.getId()).execute().getPayload().getHeaders();
+                for (MessagePartHeader mph : headers) {
+                    if(mph.getName().equals("Subject")) {
+                        subjects.add(mph.getValue());
+                    }
+                }
             }
             //return labels;
-            return headers;
+            return subjects;
         }
 
         @Override
@@ -259,30 +278,21 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         }
 
         @Override
-        @TargetApi(21)
+        //@TargetApi(21)
         protected void onPostExecute(List<String> output) {
             mProgress.setVisibility(View.INVISIBLE);
             if(output == null || output.size() == 0) {
-                mOutputText.setText("No results returned.");
+                //mOutputText.setText("No results returned.");
             } else {
-                output.add(0, "Data received using Gmail API");
-                final String formattedText = TextUtils.join("\n", output);
+                output.add(0, "Last 10 subject emails");
+                String formattedText = TextUtils.join("\n", output);
                 mOutputText.setText(formattedText);
-                final TextToSpeech textToSpeech;
-                textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
-                   @Override
-                   public void onInit(int status) {
-                       if (status == TextToSpeech.SUCCESS) {
-                           int result = textToSpeech.setLanguage(Locale.ENGLISH);
-                           if (result == TextToSpeech.LANG_MISSING_DATA) {
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
 
-                           } else {
-                               textToSpeech.speak(formattedText, textToSpeech.QUEUE_FLUSH, null, null);
-                               textToSpeech.shutdown();
-                           }
-                       }
-                    }
-                });
+                } else {
+                    textToSpeech.speak(formattedText, textToSpeech.QUEUE_FLUSH, null);
+                    //textToSpeech.shutdown();
+                }
             }
         }
         @Override
